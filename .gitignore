@@ -4,4 +4,3 @@ downloads/
 *.txt
 *.html
 .DS_Store
-package-lock.json

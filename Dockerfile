@@ -1,14 +1,17 @@
-# Use the official Playwright image which has all browser dependencies
-FROM mcr.microsoft.com/playwright:v1.50.0-focal
+# Use a modern Playwright image as base
+FROM mcr.microsoft.com/playwright:v1.49.1-jammy
 
 # Create app directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package.json and package-lock.json (now allowed by .gitignore)
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
+
+# Install the browsers to match the package version
+RUN npx playwright install --with-deps chromium
 
 # Copy the rest of the application code
 COPY . .
@@ -17,4 +20,4 @@ COPY . .
 RUN mkdir -p downloads
 
 # Command to run the script
-CMD ["node", "guest_video_gen.js"]
+CMD ["npm", "start"]
