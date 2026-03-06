@@ -1,11 +1,26 @@
 ============================================================
-🎬  Pixelbin 24/7 Automated Video Generator
+🎬  Pixelbin 24/7 Automated Video Generator & API
 ============================================================
 1. Purpose: Automates AI video generation using guest sessions.
 2. Limit Bypass: Automatically clears LocalStorage to reset credits.
 3. 24/7 Cloud: Runs on Render's Free tier via Express server.
 4. Keep-Alive: Uses /ping endpoint with external pinger.
 5. Setup: Connect GitHub repo (uditasingh2/veo) to Render.
-6. Local Run: Run 'node guest_video_gen.js' for manual test.
-7. Status: Monitor live at: https://your-app.onrender.com/status
+
+------------------------------------------------------------
+🚀 HOW TO USE AS AN API (Public)
+------------------------------------------------------------
+You can now generate videos via URL! Simply use:
+https://pixelbin-gen.onrender.com/generate?prompt=YOUR_PROMPT
+
+Example:
+https://pixelbin-gen.onrender.com/generate?prompt=A+cute+cat+in+space
+
+Note: If the generator is busy, you will get a "Service Busy" 
+message. Wait 1-2 minutes and try again.
+
+------------------------------------------------------------
+📊 MONITORING
+------------------------------------------------------------
+Status Feed: https://pixelbin-gen.onrender.com/status
 ============================================================

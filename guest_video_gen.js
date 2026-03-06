@@ -41,9 +41,19 @@ async function downloadVideo(url, targetPath) {
     });
 }
 
+// Global lock to prevent RAM crashes on Render
+let isGenerating = false;
+
 // Main Automation Logic
-async function runAutomation() {
+async function runAutomation(customPrompt = null) {
+    if (isGenerating) {
+        console.log("⚠️ A generation is already in progress. Skipping...");
+        return null;
+    }
+
+    isGenerating = true;
     console.log(`\n🕒 [${new Date().toISOString()}] Starting automation cycle...`);
+
     const browser = await chromium.launch({
         headless: true,
         args: [
@@ -53,9 +63,10 @@ async function runAutomation() {
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            '--single-process' // Saves significant memory in limited environments
+            '--single-process'
         ]
     });
+
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -83,13 +94,14 @@ async function runAutomation() {
 
         await page.waitForTimeout(5000);
 
-        const prompts = [
+        const defaultPrompts = [
             'A futuristic dragon made of glass and fire, cinematic lighting',
             'A cyberpunk city street at night, neon rain, hyper-realistic',
             'A miniature galaxy inside a lightbulb, ethereal glow',
             'A steampunk owl made of gears and brass, highly detailed'
         ];
-        const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+
+        const prompt = customPrompt || defaultPrompts[Math.floor(Math.random() * defaultPrompts.length)];
 
         console.log(`📝 Using prompt: "${prompt}"`);
         const textarea = page.locator('textarea#video-prompt');
@@ -134,7 +146,7 @@ async function runAutomation() {
 
         if (videoCaptured) {
             console.log(`✅ Success! Video: ${videoCaptured}`);
-            addLog('SUCCESS', `Generated: ${videoCaptured}`);
+            addLog('SUCCESS', `Generated: ${videoCaptured} (${prompt})`);
             const downloadDir = path.join(__dirname, 'downloads');
             if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir);
             const targetFile = path.join(downloadDir, `gen_${Date.now()}.mp4`);
@@ -142,14 +154,18 @@ async function runAutomation() {
             console.log('✨ Downloaded!');
         } else {
             console.log('❌ Could not identify custom video.');
-            addLog('FAILURE', 'Could not identify custom video URL in network traffic.');
+            addLog('FAILURE', `Could not identify custom video URL for prompt: ${prompt}`);
         }
+
+        return videoCaptured;
 
     } catch (err) {
         console.error('❌ Error:', err.message);
         addLog('ERROR', err.message);
+        return null;
     } finally {
         await browser.close();
+        isGenerating = false;
         console.log('🏁 Cycle finished.');
     }
 }
@@ -164,9 +180,31 @@ app.get('/ping', (req, res) => {
 app.get('/status', (req, res) => {
     res.json({
         service: 'Pixelbin Video Generator Bot',
+        is_busy: isGenerating,
         uptime: process.uptime(),
         history: generationLogs
     });
+});
+
+// Manual Generation Endpoint
+app.get('/generate', async (req, res) => {
+    const prompt = req.query.prompt;
+    if (!prompt) {
+        return res.status(400).json({ error: "Please provide a 'prompt' query parameter." });
+    }
+
+    if (isGenerating) {
+        return res.status(503).json({ error: "The generator is currently busy. Please try again in a few minutes." });
+    }
+
+    console.log(`📡 API Request received for prompt: "${prompt}"`);
+    const videoUrl = await runAutomation(prompt);
+
+    if (videoUrl) {
+        res.json({ success: true, url: videoUrl });
+    } else {
+        res.status(500).json({ success: false, error: "Failed to generate video. Check /status for logs." });
+    }
 });
 
 // Automatic Loop
@@ -174,7 +212,9 @@ const DELAY_MINUTES = 10;
 async function startLoop() {
     while (true) {
         try {
-            await runAutomation();
+            if (!isGenerating) {
+                await runAutomation();
+            }
         } catch (e) {
             console.error('Global Error:', e);
             addLog('GLOBAL_ERROR', e.message);
@@ -189,6 +229,6 @@ app.listen(port, () => {
     const baseUrl = process.env.RENDER_EXTERNAL_URL || `https://pixelbin-gen.onrender.com`;
     console.log(`🚀 Web Service active on port ${port}`);
     console.log(`🔗 Status URL: ${baseUrl}/status`);
-    console.log(`🔗 Ping URL: ${baseUrl}/ping`);
+    console.log(`🔗 Manual API: ${baseUrl}/generate?prompt=YOUR_PROMPT_HERE`);
     startLoop();
 });
