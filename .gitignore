@@ -1,0 +1,7 @@
+node_modules/
+downloads/
+*.png
+*.txt
+*.html
+.DS_Store
+package-lock.json
