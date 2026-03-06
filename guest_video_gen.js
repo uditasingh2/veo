@@ -46,7 +46,15 @@ async function runAutomation() {
     console.log(`\n🕒 [${new Date().toISOString()}] Starting automation cycle...`);
     const browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process' // Saves significant memory in limited environments
+        ]
     });
     const context = await browser.newContext();
     const page = await context.newPage();
