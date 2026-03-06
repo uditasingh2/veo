@@ -186,7 +186,9 @@ async function startLoop() {
 
 // Start Server
 app.listen(port, () => {
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || `https://pixelbin-gen.onrender.com`;
     console.log(`🚀 Web Service active on port ${port}`);
-    console.log(`🔗 Ping URL: https://YOUR-APP-NAME.onrender.com/status`);
+    console.log(`🔗 Status URL: ${baseUrl}/status`);
+    console.log(`🔗 Ping URL: ${baseUrl}/ping`);
     startLoop();
 });
