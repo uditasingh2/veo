@@ -63,12 +63,28 @@ async function runAutomation(customPrompt = null) {
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            '--single-process'
+            '--single-process',
+            '--disable-extensions',
+            '--disable-default-apps',
+            '--disable-component-extensions-with-background-pages'
         ]
     });
 
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    });
+
+    // Resource Interception to save RAM (Block images, fonts, and css)
     const page = await context.newPage();
+    await page.route('**/*', (route) => {
+        const type = route.request().resourceType();
+        if (['image', 'font', 'stylesheet', 'media'].includes(type)) {
+            route.abort();
+        } else {
+            route.continue();
+        }
+    });
 
     let capturedUrls = new Set();
     let videoCaptured = null;
@@ -81,9 +97,10 @@ async function runAutomation(customPrompt = null) {
     });
 
     try {
-        console.log('🌐 Navigating...');
+        console.log('🌐 Navigating (Low-Memory Mode)...');
+        // Faster navigation by only waiting for DOM
         await page.goto('https://www.pixelbin.io/ai-tools/video-generator', {
-            waitUntil: 'domcontentloaded',
+            waitUntil: 'commit',
             timeout: 60000
         });
 
@@ -92,7 +109,7 @@ async function runAutomation(customPrompt = null) {
             localStorage.removeItem('rate_limit_video-generation');
         });
 
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(3000);
 
         const defaultPrompts = [
             'A futuristic dragon made of glass and fire, cinematic lighting',
@@ -104,18 +121,13 @@ async function runAutomation(customPrompt = null) {
         const prompt = customPrompt || defaultPrompts[Math.floor(Math.random() * defaultPrompts.length)];
 
         console.log(`📝 Using prompt: "${prompt}"`);
-        const textarea = page.locator('textarea#video-prompt');
-        await textarea.fill(prompt);
-        await page.evaluate(() => {
-            const el = document.querySelector('textarea#video-prompt');
-            if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
-        });
+        // Use a more direct fill for speed
+        await page.fill('textarea#video-prompt', prompt);
+        await page.dispatchEvent('textarea#video-prompt', 'input');
 
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
 
         console.log('🎬 Clicking Generate...');
-        const generateBtn = page.locator('button:has-text("Generate")').first();
-
         await page.evaluate(() => {
             const btns = Array.from(document.querySelectorAll('button'));
             const genBtn = btns.find(b => b.innerText.includes('Generate'));
@@ -124,10 +136,6 @@ async function runAutomation(customPrompt = null) {
                 genBtn.click();
             }
         });
-
-        try {
-            await generateBtn.click({ force: true, timeout: 5000 });
-        } catch (e) { }
 
         console.log('⏳ Monitoring for video URL...');
         const startTime = Date.now();
@@ -147,11 +155,6 @@ async function runAutomation(customPrompt = null) {
         if (videoCaptured) {
             console.log(`✅ Success! Video: ${videoCaptured}`);
             addLog('SUCCESS', `Generated: ${videoCaptured} (${prompt})`);
-            const downloadDir = path.join(__dirname, 'downloads');
-            if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir);
-            const targetFile = path.join(downloadDir, `gen_${Date.now()}.mp4`);
-            await downloadVideo(videoCaptured, targetFile);
-            console.log('✨ Downloaded!');
         } else {
             console.log('❌ Could not identify custom video.');
             addLog('FAILURE', `Could not identify custom video URL for prompt: ${prompt}`);
@@ -186,25 +189,30 @@ app.get('/status', (req, res) => {
     });
 });
 
-// Manual Generation Endpoint
-app.get('/generate', async (req, res) => {
+// Manual Generation Endpoint (Asynchronous to avoid 502 timeouts)
+app.get('/generate', (req, res) => {
     const prompt = req.query.prompt;
     if (!prompt) {
         return res.status(400).json({ error: "Please provide a 'prompt' query parameter." });
     }
 
     if (isGenerating) {
-        return res.status(503).json({ error: "The generator is currently busy. Please try again in a few minutes." });
+        return res.status(503).json({
+            error: "The generator is currently busy.",
+            check_status: "/status"
+        });
     }
 
     console.log(`📡 API Request received for prompt: "${prompt}"`);
-    const videoUrl = await runAutomation(prompt);
 
-    if (videoUrl) {
-        res.json({ success: true, url: videoUrl });
-    } else {
-        res.status(500).json({ success: false, error: "Failed to generate video. Check /status for logs." });
-    }
+    // Trigger in backgound
+    runAutomation(prompt).catch(e => console.error("Async Gen Error:", e));
+
+    res.json({
+        success: true,
+        message: "Generation started! Check /status in 1-2 minutes for your link.",
+        prompt: prompt
+    });
 });
 
 // Automatic Loop

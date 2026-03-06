@@ -10,14 +10,15 @@
 ------------------------------------------------------------
 🚀 HOW TO USE AS AN API (Public)
 ------------------------------------------------------------
-You can now generate videos via URL! Simply use:
+Trigger a generation via URL:
 https://pixelbin-gen.onrender.com/generate?prompt=YOUR_PROMPT
+
+Step 1: Click the URL above. It will return "Generation started!"
+Step 2: Wait 2 minutes.
+Step 3: Check https://pixelbin-gen.onrender.com/status for your video link.
 
 Example:
 https://pixelbin-gen.onrender.com/generate?prompt=A+cute+cat+in+space
-
-Note: If the generator is busy, you will get a "Service Busy" 
-message. Wait 1-2 minutes and try again.
 
 ------------------------------------------------------------
 📊 MONITORING
