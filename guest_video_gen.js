@@ -1,8 +1,13 @@
+const express = require('express');
 const { chromium } = require('playwright');
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
 
+const app = express();
+const port = process.env.PORT || 10000;
+
+// Helper to download video
 async function downloadVideo(url, targetPath) {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(targetPath);
@@ -17,17 +22,18 @@ async function downloadVideo(url, targetPath) {
                 reject(new Error(`Failed to download: Status ${response.statusCode}`));
             }
         }).on('error', (err) => {
-            fs.unlink(targetPath, () => { }); // Clean up
+            fs.unlink(targetPath, () => { });
             reject(err);
         });
     });
 }
 
+// Main Automation Logic
 async function runAutomation() {
     console.log(`\n🕒 [${new Date().toISOString()}] Starting automation cycle...`);
     const browser = await chromium.launch({
-        headless: true, // MUST be true for Render
-        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Recommended for cloud environments
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -69,7 +75,7 @@ async function runAutomation() {
         await textarea.fill(prompt);
         await page.evaluate(() => {
             const el = document.querySelector('textarea#video-prompt');
-            el.dispatchEvent(new Event('input', { bubbles: true }));
+            if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
         });
 
         await page.waitForTimeout(2000);
@@ -124,9 +130,15 @@ async function runAutomation() {
     }
 }
 
-// 24/7 Loop: Run every 10 minutes to avoid IP blocks
+// Keep-Alive Endpoint
+app.get('/ping', (req, res) => {
+    console.log('💓 Received ping! Keeping service awake.');
+    res.send('Service is alive and cranking videos!');
+});
+
+// Automatic Loop
 const DELAY_MINUTES = 10;
-(async () => {
+async function startLoop() {
     while (true) {
         try {
             await runAutomation();
@@ -136,4 +148,11 @@ const DELAY_MINUTES = 10;
         console.log(`💤 Sleeping for ${DELAY_MINUTES} minutes...`);
         await new Promise(r => setTimeout(r, DELAY_MINUTES * 60 * 1000));
     }
-})();
+}
+
+// Start Server
+app.listen(port, () => {
+    console.log(`🚀 Web Service active on port ${port}`);
+    console.log(`🔗 Ping URL: https://YOUR-APP-NAME.onrender.com/ping`);
+    startLoop();
+});
