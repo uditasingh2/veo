@@ -7,6 +7,19 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 10000;
 
+// Global log to track generation history
+let generationLogs = [];
+const MAX_LOGS = 10;
+
+function addLog(status, detail) {
+    generationLogs.unshift({
+        timestamp: new Date().toISOString(),
+        status,
+        detail
+    });
+    if (generationLogs.length > MAX_LOGS) generationLogs.pop();
+}
+
 // Helper to download video
 async function downloadVideo(url, targetPath) {
     return new Promise((resolve, reject) => {
@@ -113,6 +126,7 @@ async function runAutomation() {
 
         if (videoCaptured) {
             console.log(`✅ Success! Video: ${videoCaptured}`);
+            addLog('SUCCESS', `Generated: ${videoCaptured}`);
             const downloadDir = path.join(__dirname, 'downloads');
             if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir);
             const targetFile = path.join(downloadDir, `gen_${Date.now()}.mp4`);
@@ -120,10 +134,12 @@ async function runAutomation() {
             console.log('✨ Downloaded!');
         } else {
             console.log('❌ Could not identify custom video.');
+            addLog('FAILURE', 'Could not identify custom video URL in network traffic.');
         }
 
     } catch (err) {
         console.error('❌ Error:', err.message);
+        addLog('ERROR', err.message);
     } finally {
         await browser.close();
         console.log('🏁 Cycle finished.');
@@ -136,6 +152,15 @@ app.get('/ping', (req, res) => {
     res.send('Service is alive and cranking videos!');
 });
 
+// Status Monitoring Endpoint
+app.get('/status', (req, res) => {
+    res.json({
+        service: 'Pixelbin Video Generator Bot',
+        uptime: process.uptime(),
+        history: generationLogs
+    });
+});
+
 // Automatic Loop
 const DELAY_MINUTES = 10;
 async function startLoop() {
@@ -144,6 +169,7 @@ async function startLoop() {
             await runAutomation();
         } catch (e) {
             console.error('Global Error:', e);
+            addLog('GLOBAL_ERROR', e.message);
         }
         console.log(`💤 Sleeping for ${DELAY_MINUTES} minutes...`);
         await new Promise(r => setTimeout(r, DELAY_MINUTES * 60 * 1000));
@@ -153,6 +179,6 @@ async function startLoop() {
 // Start Server
 app.listen(port, () => {
     console.log(`🚀 Web Service active on port ${port}`);
-    console.log(`🔗 Ping URL: https://YOUR-APP-NAME.onrender.com/ping`);
+    console.log(`🔗 Ping URL: https://YOUR-APP-NAME.onrender.com/status`);
     startLoop();
 });
